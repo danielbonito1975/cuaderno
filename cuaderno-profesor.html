@@ -54,7 +54,7 @@
 </head>
 <body>
 <div id="root"><div id="boot-msg">Cargando cuaderno…</div></div>
-<script type="text/babel" data-presets="react">
+<script type="text/plain" id="app-source">
 const { useState, useEffect, useRef, useCallback } = React;
 
 function Plus({ size = 14, color = 'currentColor', strokeWidth = 2 }) {
@@ -543,11 +543,13 @@ function initialData() {
   });
 
   const paidLaminas = {};
+  const banoPermiso = {};
   groups.forEach((g) => {
     paidLaminas[g.id] = {};
+    banoPermiso[g.id] = {};
   });
 
-  return { groups, assignments, grades, bachAssessments, bachGrades, paidLaminas };
+  return { groups, assignments, grades, bachAssessments, bachGrades, paidLaminas, banoPermiso };
 }
 
 function average(values) {
@@ -707,6 +709,19 @@ function CuadernoProfesor() {
         [groupId]: {
           ...(prev.paidLaminas[groupId] || {}),
           [studentId]: !(prev.paidLaminas[groupId] || {})[studentId],
+        },
+      },
+    }));
+  }
+
+  function toggleBano(groupId, studentId) {
+    setData((prev) => ({
+      ...prev,
+      banoPermiso: {
+        ...prev.banoPermiso,
+        [groupId]: {
+          ...(prev.banoPermiso[groupId] || {}),
+          [studentId]: !(prev.banoPermiso[groupId] || {})[studentId],
         },
       },
     }));
@@ -896,6 +911,8 @@ function CuadernoProfesor() {
               onRemove={removeAssignment}
               paid={data.paidLaminas[group.id] || {}}
               onTogglePaid={(studentId) => togglePaidLaminas(group.id, studentId)}
+              bano={data.banoPermiso[group.id] || {}}
+              onToggleBano={(studentId) => toggleBano(group.id, studentId)}
             />
           )}
 
@@ -915,6 +932,8 @@ function CuadernoProfesor() {
               onRemove={removeBachItem}
               paid={data.paidLaminas[group.id] || {}}
               onTogglePaid={(studentId) => togglePaidLaminas(group.id, studentId)}
+              bano={data.banoPermiso[group.id] || {}}
+              onToggleBano={(studentId) => toggleBano(group.id, studentId)}
             />
           )}
         </main>
@@ -923,7 +942,7 @@ function CuadernoProfesor() {
   );
 }
 
-function EsoTable({ group, assignments, grades, photos, onPhotoClick, onPhotoRemove, onUpdate, onAdd, onRename, onRemove, paid, onTogglePaid }) {
+function EsoTable({ group, assignments, grades, photos, onPhotoClick, onPhotoRemove, onUpdate, onAdd, onRename, onRemove, paid, onTogglePaid, bano, onToggleBano }) {
   return (
     <div style={styles.tableWrap} className="cp-scroll">
       <table style={styles.table}>
@@ -931,6 +950,7 @@ function EsoTable({ group, assignments, grades, photos, onPhotoClick, onPhotoRem
           <tr>
             <th style={{ ...styles.th, ...styles.thSticky, textAlign: 'left', minWidth: 260 }}>Alumno</th>
             <th style={{ ...styles.th, minWidth: 80 }} title="Pago de láminas del 1er trimestre">Láminas<br />pagadas</th>
+            <th style={{ ...styles.th, minWidth: 70 }} title="Permiso de baño">Baño</th>
             {assignments.map((a) => (
               <th key={a.id} style={{ ...styles.th, minWidth: 128 }}>
                 <div style={styles.assignmentHeader}>
@@ -979,6 +999,14 @@ function EsoTable({ group, assignments, grades, photos, onPhotoClick, onPhotoRem
                     style={styles.checkbox}
                   />
                 </td>
+                <td style={styles.td}>
+                  <input
+                    type="checkbox"
+                    checked={!!bano[s.id]}
+                    onChange={() => onToggleBano(s.id)}
+                    style={styles.checkbox}
+                  />
+                </td>
                 {assignments.map((a) => (
                   <td key={a.id} style={styles.td}>
                     <input
@@ -1012,7 +1040,7 @@ function EsoTable({ group, assignments, grades, photos, onPhotoClick, onPhotoRem
   );
 }
 
-function BachTable({ group, trim, examItems, laminaItems, grades, photos, onPhotoClick, onPhotoRemove, onUpdate, onAdd, onRename, onRemove, paid, onTogglePaid }) {
+function BachTable({ group, trim, examItems, laminaItems, grades, photos, onPhotoClick, onPhotoRemove, onUpdate, onAdd, onRename, onRemove, paid, onTogglePaid, bano, onToggleBano }) {
   const items = [...examItems, ...laminaItems];
   return (
     <div style={styles.tableWrap} className="cp-scroll">
@@ -1027,6 +1055,9 @@ function BachTable({ group, trim, examItems, laminaItems, grades, photos, onPhot
             <th style={{ ...styles.th, ...styles.thSticky, textAlign: 'left', minWidth: 260 }}>Alumno</th>
             {trim === 1 && (
               <th style={{ ...styles.th, minWidth: 80 }} title="Pago de láminas del 1er trimestre">Láminas<br />pagadas</th>
+            )}
+            {trim === 1 && (
+              <th style={{ ...styles.th, minWidth: 70 }} title="Permiso de baño">Baño</th>
             )}
             {items.map((it) => (
               <th key={it.id} style={{ ...styles.th, minWidth: 128 }}>
@@ -1085,6 +1116,16 @@ function BachTable({ group, trim, examItems, laminaItems, grades, photos, onPhot
                       type="checkbox"
                       checked={!!paid[s.id]}
                       onChange={() => onTogglePaid(s.id)}
+                      style={styles.checkbox}
+                    />
+                  </td>
+                )}
+                {trim === 1 && (
+                  <td style={styles.td}>
+                    <input
+                      type="checkbox"
+                      checked={!!bano[s.id]}
+                      onChange={() => onToggleBano(s.id)}
                       style={styles.checkbox}
                     />
                   </td>
@@ -1413,13 +1454,40 @@ function waitForFirebase() {
   return new Promise((resolve) => {
     if (window.storage) return resolve();
     window.addEventListener('firebase-ready', () => resolve(), { once: true });
+    setTimeout(resolve, 2000);
   });
 }
 
 waitForFirebase().then(() => {
-  const rootEl = document.getElementById('root');
-  const root = ReactDOM.createRoot(rootEl);
-  root.render(React.createElement(CuadernoProfesor));
+  try {
+    if (!window.storage) {
+      window.storage = {
+        async get() { return null; },
+        async set(key, value) { return { key, value, shared: false }; },
+        async delete() { return null; },
+        async list() { return { keys: [] }; },
+      };
+    }
+    const __src = document.getElementById('app-source').textContent;
+    const __out = Babel.transform(__src, {
+      presets: [['react', { runtime: 'classic' }]],
+      filename: 'app.jsx',
+    }).code;
+    const __script = document.createElement('script');
+    __script.textContent = __out;
+    document.body.appendChild(__script);
+
+    const rootEl = document.getElementById('root');
+    const root = ReactDOM.createRoot(rootEl);
+    root.render(React.createElement(CuadernoProfesor));
+  } catch (e) {
+    console.error('Error al arrancar la app', e);
+    document.getElementById('root').innerHTML =
+      '<div style="color:#F7C1C1;font-family:sans-serif;padding:24px;white-space:pre-wrap;">' +
+      'Error al cargar la app:\\n\\n' + (e && e.message ? e.message : String(e)) +
+      (e && e.stack ? '\\n\\n' + e.stack : '') +
+      '</div>';
+  }
 });
 </script>
 </body>
